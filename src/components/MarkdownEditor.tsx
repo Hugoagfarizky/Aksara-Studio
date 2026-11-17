@@ -8,9 +8,12 @@ import {
   Heading1,
   Heading2,
   Italic,
+  Layers,
+  LayoutGrid,
   List,
   PenLine,
   Quote,
+  RefreshCw,
   Table,
   Type,
 } from 'lucide-react';
@@ -18,11 +21,20 @@ import {
 interface MarkdownEditorProps {
   content: string;
   onChange: (nextContent: string) => void;
+  onSyncToBlocks?: () => void;
+  onPullFromBlocks?: () => void;
+  onSendToSticky?: (title: string, body: string) => void;
 }
 
 type EditorSubView = 'split' | 'edit' | 'preview';
 
-export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ content, onChange }) => {
+export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
+  content,
+  onChange,
+  onSyncToBlocks,
+  onPullFromBlocks,
+  onSendToSticky,
+}) => {
   const [subView, setSubView] = useState<EditorSubView>('split');
   const [useSerif, setUseSerif] = useState<boolean>(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -52,6 +64,18 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ content, onChang
       const cursorPos = start + prefix.length + selected.length + suffix.length;
       el.setSelectionRange(cursorPos, cursorPos);
     });
+  };
+
+  const handleSendHighlightToSticky = () => {
+    if (!onSendToSticky) return;
+    const el = textareaRef.current;
+    const selected =
+      el && el.selectionStart !== el.selectionEnd
+        ? content.slice(el.selectionStart, el.selectionEnd).trim()
+        : content.trim().slice(0, 220);
+    if (!selected) return;
+    const firstLine = selected.split('\n')[0].replace(/^#+\s*/, '').slice(0, 48);
+    onSendToSticky(firstLine || 'Cuplikan Markdown', selected);
   };
 
   const toggleCheckboxLine = (lineIndex: number) => {
@@ -105,7 +129,6 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ content, onChang
     while (i < lines.length) {
       const line = lines[i];
 
-      // Code block
       if (line.trim().startsWith('```')) {
         const lang = line.trim().slice(3).trim() || 'kode';
         const codeLines: string[] = [];
@@ -132,7 +155,6 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ content, onChang
         continue;
       }
 
-      // Markdown table
       if (line.includes('|') && i + 1 < lines.length && lines[i + 1].includes('---')) {
         const headers = line
           .split('|')
@@ -190,7 +212,6 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ content, onChang
         continue;
       }
 
-      // Headings
       if (line.startsWith('# ')) {
         elements.push(
           <h1
@@ -228,7 +249,6 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ content, onChang
         continue;
       }
 
-      // Blockquote (subtle all-around border, no thick left stripe)
       if (line.startsWith('> ')) {
         elements.push(
           <blockquote
@@ -242,7 +262,6 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ content, onChang
         continue;
       }
 
-      // Interactive Checklist
       const todoMatch = line.match(/^\s*-\s*\[([ xX])\]\s+(.*)$/);
       if (todoMatch) {
         const isChecked = todoMatch[1].toLowerCase() === 'x';
@@ -274,7 +293,6 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ content, onChang
         continue;
       }
 
-      // Bullet list
       if (/^\s*[-*]\s+/.test(line)) {
         elements.push(
           <div key={i} className="flex items-start gap-2.5 py-1 pl-1">
@@ -288,7 +306,6 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ content, onChang
         continue;
       }
 
-      // Numbered list
       const numMatch = line.match(/^\s*(\d+)\.\s+(.*)$/);
       if (numMatch) {
         elements.push(
@@ -305,14 +322,12 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ content, onChang
         continue;
       }
 
-      // Blank line
       if (!line.trim()) {
         elements.push(<div key={i} className="h-3" />);
         i++;
         continue;
       }
 
-      // Default paragraph
       elements.push(
         <p
           key={i}
@@ -329,7 +344,7 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ content, onChang
 
   return (
     <div className="flex flex-col h-full">
-      {/* Formatting & View Toolbar */}
+      {/* Formatting & Cross-Mode Bridge Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-2.5 border-b border-stone-200/80 dark:border-slate-800 bg-[#F3F1EC]/60 dark:bg-slate-900/60">
         <div className="flex items-center gap-1 overflow-x-auto">
           <button
@@ -412,10 +427,47 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ content, onChang
           >
             <Code className="w-4 h-4" />
           </button>
+
+          {/* Cross-Layer Connection Buttons */}
+          {onSyncToBlocks && (
+            <>
+              <span className="h-4 w-px bg-stone-300 dark:bg-slate-700 mx-1" />
+              <button
+                type="button"
+                onClick={onSyncToBlocks}
+                title="Konversi isi Markdown ini menjadi Blok Wiki di catatan ini"
+                className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800/70 hover:bg-indigo-100 transition-colors whitespace-nowrap shrink-0"
+              >
+                <Layers className="w-3.5 h-3.5" />
+                <span>Sinkron → Blok Wiki</span>
+              </button>
+            </>
+          )}
+          {onPullFromBlocks && (
+            <button
+              type="button"
+              onClick={onPullFromBlocks}
+              title="Perbarui teks Markdown dari susunan Blok Wiki catatan ini"
+              className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium text-stone-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-stone-200 dark:border-slate-700 hover:border-indigo-500 transition-colors whitespace-nowrap shrink-0"
+            >
+              <RefreshCw className="w-3 h-3" />
+              <span>Ambil ← Blok Wiki</span>
+            </button>
+          )}
+          {onSendToSticky && (
+            <button
+              type="button"
+              onClick={handleSendHighlightToSticky}
+              title="Kirim teks terpilih (atau cuplikan) menjadi Kartu Sticky di catatan ini"
+              className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800/70 hover:bg-amber-100 transition-colors whitespace-nowrap shrink-0"
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              <span>+ Kartu Sticky</span>
+            </button>
+          )}
         </div>
 
-        <div className="flex items-center gap-3">
-          {/* Serif / Sans Editorial Toggle */}
+        <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => setUseSerif(!useSerif)}
@@ -426,10 +478,9 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ content, onChang
             }`}
           >
             <Type className="w-3.5 h-3.5" />
-            <span>{useSerif ? 'Tipografi Serif' : 'Tipografi Sans'}</span>
+            <span>{useSerif ? 'Serif' : 'Sans'}</span>
           </button>
 
-          {/* Segmented View Controls */}
           <div className="flex items-center gap-0.5 p-0.5 rounded-lg bg-stone-200/70 dark:bg-slate-800">
             <button
               type="button"
@@ -474,7 +525,9 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ content, onChang
       {/* Main Editor + Preview Split Area */}
       <div
         className={`flex-1 grid overflow-hidden ${
-          subView === 'split' ? 'grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-stone-200/80 dark:divide-slate-800' : 'grid-cols-1'
+          subView === 'split'
+            ? 'grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-stone-200/80 dark:divide-slate-800'
+            : 'grid-cols-1'
         }`}
       >
         {(subView === 'edit' || subView === 'split') && (
@@ -483,8 +536,8 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ content, onChang
               ref={textareaRef}
               value={content}
               onChange={(e) => onChange(e.target.value)}
-              placeholder="Mulai menulis dengan Markdown... Gunakan # untuk judul, - [ ] untuk daftar tugas, atau ``` untuk kode."
-              className={`w-full flex-1 p-6 bg-transparent resize-none focus:outline-none text-[15px] leading-relaxed text-stone-800 dark:text-slate-200 placeholder:text-stone-400 dark:placeholder:text-slate-500 overflow-y-auto ${
+              placeholder="Mulai menulis dengan Markdown... Gunakan tombol 'Sinkron → Blok Wiki' atau '+ Kartu Sticky' di atas untuk menghubungkan ke bagian lain catatan ini."
+              className={`w-full flex-1 p-5 bg-transparent resize-none focus:outline-none text-[15px] leading-relaxed text-stone-800 dark:text-slate-200 placeholder:text-stone-400 dark:placeholder:text-slate-500 overflow-y-auto ${
                 useSerif ? 'font-serif-editorial text-[16px]' : ''
               }`}
             />
@@ -493,7 +546,7 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ content, onChang
 
         {(subView === 'preview' || subView === 'split') && (
           <div
-            className={`h-full overflow-y-auto p-6 bg-[#FAF9F5]/50 dark:bg-slate-950/40 ${
+            className={`h-full overflow-y-auto p-5 bg-[#FAF9F5]/50 dark:bg-slate-950/40 ${
               useSerif ? 'font-serif-editorial' : ''
             }`}
           >
@@ -511,7 +564,7 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ content, onChang
           <span aria-hidden="true">·</span>
           <span>Estimasi baca {stats.readingMinutes} mnt</span>
         </div>
-        <div>Klik kotak tugas pada Pratinjau untuk mencentang langsung</div>
+        <div>Terhubung dengan Blok Wiki, Papan Sticky & Kanvas</div>
       </div>
     </div>
   );

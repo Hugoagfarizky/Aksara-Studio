@@ -9,6 +9,7 @@ interface TemplateGalleryViewProps {
 }
 
 const MODE_LABELS: Record<NoteMode, string> = {
+  unified: 'Terpadu (4-in-1)',
   markdown: 'Editor Markdown',
   blocks: 'Sistem Blok Wiki',
   sticky: 'Papan Kartu Sticky',

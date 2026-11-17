@@ -1,4 +1,4 @@
-export type NoteMode = 'markdown' | 'blocks' | 'sticky' | 'canvas';
+export type NoteMode = 'unified' | 'markdown' | 'blocks' | 'sticky' | 'canvas';
 
 export type WorkspaceView = 'notes' | 'sticky-board' | 'canvas-studio' | 'tasks' | 'templates';
 

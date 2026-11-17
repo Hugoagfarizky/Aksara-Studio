@@ -5,6 +5,7 @@ import {
   ChevronDown,
   ChevronRight,
   Circle,
+  Columns,
   Download,
   FileDown,
   FileText,
@@ -12,12 +13,14 @@ import {
   FolderPlus,
   Layers,
   LayoutGrid,
+  Maximize2,
   Moon,
   Network,
   PanelLeftClose,
   PanelLeftOpen,
   Pin,
   Plus,
+  RefreshCw,
   Search,
   Sun,
   Tag,
@@ -38,9 +41,11 @@ import {
   INITIAL_TAGS,
 } from './data/initialData';
 import {
+  CanvasNode,
   ChecklistItem,
   Folder,
   Note,
+  NoteBlock,
   NoteMode,
   NoteTemplate,
   StickyCard,
@@ -48,6 +53,13 @@ import {
   TagItem,
   WorkspaceView,
 } from './types/note';
+import {
+  blocksToMarkdown,
+  canvasNodeToStickyCard,
+  canvasToWikiBlocks,
+  markdownToBlocks,
+  stickyCardToCanvasNode,
+} from './utils/noteSync';
 
 const STORAGE_KEYS = {
   NOTES: 'aksara_studio_notes_v2',
@@ -66,6 +78,7 @@ const TAG_DOT_COLORS: Record<TagColorKey, string> = {
 };
 
 const MODE_LABELS: Record<NoteMode, string> = {
+  unified: 'Terpadu 4-in-1',
   markdown: 'Markdown',
   blocks: 'Blok Wiki',
   sticky: 'Papan Sticky',
@@ -128,7 +141,6 @@ export default function App() {
   );
   const [selectedFolderId, setSelectedFolderId] = useState<string | 'all' | 'pinned'>('all');
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
-  const [selectedModeFilter, setSelectedModeFilter] = useState<NoteMode | 'all'>('all');
   const [listSearch, setListSearch] = useState<string>('');
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(true);
   const [checklistDrawerOpen, setChecklistDrawerOpen] = useState<boolean>(false);
@@ -159,7 +171,7 @@ export default function App() {
     }, 3200);
   };
 
-  // Clear legacy v1 sample keys on mount so workspace is completely clean
+  // Clear legacy v1 sample keys on mount
   useEffect(() => {
     try {
       localStorage.removeItem('aksara_studio_notes_v1');
@@ -219,7 +231,6 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Helper: Get Folder & Descendant Folder IDs for Nested Filtering
   const getFolderAndDescendantIds = (folderId: string): string[] => {
     const result = [folderId];
     const children = folders.filter((f) => f.parentId === folderId);
@@ -229,7 +240,6 @@ export default function App() {
     return result;
   };
 
-  // Filtered Notes List
   const filteredNotes = useMemo(() => {
     return [...notes]
       .filter((note) => {
@@ -245,10 +255,6 @@ export default function App() {
         return note.tags.includes(selectedTag);
       })
       .filter((note) => {
-        if (selectedModeFilter === 'all') return true;
-        return note.mode === selectedModeFilter;
-      })
-      .filter((note) => {
         const q = listSearch.trim().toLowerCase();
         if (!q) return true;
         return (
@@ -261,7 +267,7 @@ export default function App() {
         if (a.isPinned !== b.isPinned) return Number(b.isPinned) - Number(a.isPinned);
         return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
       });
-  }, [notes, folders, selectedFolderId, selectedTag, selectedModeFilter, listSearch]);
+  }, [notes, folders, selectedFolderId, selectedTag, listSearch]);
 
   const activeNote = useMemo(() => {
     return (
@@ -272,7 +278,6 @@ export default function App() {
     );
   }, [notes, activeNoteId, filteredNotes]);
 
-  // Note CRUD Operations
   const updateActiveNote = (patch: Partial<Note>) => {
     if (!activeNote) return;
     const now = new Date().toISOString();
@@ -283,7 +288,8 @@ export default function App() {
     );
   };
 
-  const createNewNote = (mode: NoteMode = 'markdown') => {
+  // Create a Unified Note containing all 4 connected spaces
+  const createNewNote = (initialFocusMode: NoteMode = 'unified') => {
     const now = new Date().toISOString();
     const targetFolder =
       selectedFolderId !== 'all' && selectedFolderId !== 'pinned'
@@ -296,7 +302,7 @@ export default function App() {
       folderId: targetFolder,
       tags: selectedTag ? [selectedTag] : [],
       isPinned: false,
-      mode,
+      mode: initialFocusMode,
       createdAt: now,
       updatedAt: now,
       markdownContent: '',
@@ -313,7 +319,7 @@ export default function App() {
     setNotes((prev) => [newNote, ...prev]);
     setActiveNoteId(newNote.id);
     setActiveView('notes');
-    showToast(`Catatan ${MODE_LABELS[mode]} baru dibuat`);
+    showToast('Catatan baru (berisi Markdown, Blok Wiki, Papan Sticky & Kanvas) dibuat');
   };
 
   const applyTemplate = (template: NoteTemplate) => {
@@ -321,6 +327,7 @@ export default function App() {
     const payload = template.buildNote();
     const newNote: Note = {
       ...payload,
+      mode: 'unified',
       id: `note-${Date.now()}`,
       createdAt: now,
       updatedAt: now,
@@ -328,7 +335,7 @@ export default function App() {
     setNotes((prev) => [newNote, ...prev]);
     setActiveNoteId(newNote.id);
     setActiveView('notes');
-    showToast(`Templat "${template.name}" diterapkan`);
+    showToast(`Templat "${template.name}" diterapkan ke catatan terpadu`);
   };
 
   const deleteNote = (noteId: string) => {
@@ -340,30 +347,206 @@ export default function App() {
     showToast('Catatan dihapus');
   };
 
-  const promoteStickyToNote = (card: StickyCard) => {
-    const now = new Date().toISOString();
-    const newNote: Note = {
-      id: `note-${Date.now()}`,
-      title: card.title || 'Catatan dari Kartu Sticky',
-      folderId: activeNote?.folderId || folders[0]?.id || null,
-      tags: ['Ide Kilat'],
-      isPinned: false,
-      mode: 'markdown',
-      createdAt: now,
-      updatedAt: now,
-      markdownContent: `# ${card.title}\n\n${card.body}`,
-      blocks: [
-        { id: `b-${Date.now()}-1`, type: 'h1', content: card.title },
-        { id: `b-${Date.now()}-2`, type: 'paragraph', content: card.body },
-      ],
-      stickyCards: [card],
-      canvasData: { nodes: [], connections: [], strokes: [] },
-      checklist: [],
+  // =========================================================================
+  // CROSS-LAYER CONNECTION HANDLERS (Connecting Markdown <-> Blocks <-> Sticky <-> Canvas)
+  // =========================================================================
+
+  // 1. Markdown -> Wiki Blocks
+  const handleSyncMarkdownToBlocks = () => {
+    if (!activeNote) return;
+    const parsedBlocks = markdownToBlocks(activeNote.markdownContent);
+    updateActiveNote({ blocks: parsedBlocks });
+    showToast('Isi Markdown berhasil disinkronkan menjadi Blok Wiki');
+  };
+
+  // 2. Wiki Blocks -> Markdown
+  const handleSyncBlocksToMarkdown = () => {
+    if (!activeNote) return;
+    const md = blocksToMarkdown(activeNote.blocks);
+    updateActiveNote({ markdownContent: md });
+    showToast('Susunan Blok Wiki berhasil disinkronkan ke Markdown');
+  };
+
+  // 3. Markdown snippet -> Sticky Card
+  const handleSendMarkdownToSticky = (title: string, body: string) => {
+    if (!activeNote) return;
+    const newCard: StickyCard = {
+      id: `stk-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+      title,
+      body,
+      tone: 'amber',
+      pinned: false,
+      updatedAt: new Date().toISOString(),
     };
-    setNotes((prev) => [newNote, ...prev]);
-    setActiveNoteId(newNote.id);
-    setActiveView('notes');
-    showToast(`Kartu "${card.title}" dijadikan dokumen utuh`);
+    updateActiveNote({ stickyCards: [newCard, ...activeNote.stickyCards] });
+    showToast('Cuplikan Markdown ditambahkan ke Papan Sticky catatan ini');
+  };
+
+  // 4. Wiki Block -> Sticky Card
+  const handleSendBlockToSticky = (block: NoteBlock) => {
+    if (!activeNote) return;
+    const newCard: StickyCard = {
+      id: `stk-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+      title:
+        block.calloutTitle ||
+        (block.type === 'h1' || block.type === 'h2'
+          ? block.content
+          : `Blok ${block.type.toUpperCase()}`),
+      body: block.content || '',
+      tone: block.type === 'callout' ? 'sky' : block.type === 'todo' ? 'emerald' : 'amber',
+      pinned: false,
+      updatedAt: new Date().toISOString(),
+    };
+    updateActiveNote({ stickyCards: [newCard, ...activeNote.stickyCards] });
+    showToast('Blok Wiki dikirim ke Papan Sticky catatan ini');
+  };
+
+  // 5. Wiki Block -> Canvas Node
+  const handleSendBlockToCanvas = (block: NoteBlock) => {
+    if (!activeNote) return;
+    const existingCount = activeNote.canvasData.nodes.length;
+    const col = existingCount % 3;
+    const row = Math.floor(existingCount / 3);
+    const newNode: CanvasNode = {
+      id: `node-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+      x: 60 + col * 290,
+      y: 60 + row * 180,
+      width: 250,
+      title:
+        block.calloutTitle ||
+        (block.type === 'h1' || block.type === 'h2'
+          ? block.content
+          : `Konsep Blok`),
+      content: block.content || '',
+      tone: 'indigo',
+    };
+    updateActiveNote({
+      canvasData: {
+        ...activeNote.canvasData,
+        nodes: [...activeNote.canvasData.nodes, newNode],
+      },
+    });
+    showToast('Blok Wiki ditambahkan sebagai Node di Kanvas Visual');
+  };
+
+  // 6. Sticky Card -> Canvas Node
+  const handleSendStickyCardToCanvas = (card: StickyCard) => {
+    if (!activeNote) return;
+    const newNode = stickyCardToCanvasNode(
+      card,
+      activeNote.canvasData.nodes.length
+    );
+    updateActiveNote({
+      canvasData: {
+        ...activeNote.canvasData,
+        nodes: [...activeNote.canvasData.nodes, newNode],
+      },
+    });
+    showToast(`Kartu "${card.title || 'Sticky'}" dikirim ke Kanvas Visual`);
+  };
+
+  // 7. All Sticky Cards -> Canvas Nodes
+  const handleSendAllStickyToCanvas = () => {
+    if (!activeNote || activeNote.stickyCards.length === 0) return;
+    const baseCount = activeNote.canvasData.nodes.length;
+    const newNodes = activeNote.stickyCards.map((c, idx) =>
+      stickyCardToCanvasNode(c, baseCount + idx)
+    );
+    updateActiveNote({
+      canvasData: {
+        ...activeNote.canvasData,
+        nodes: [...activeNote.canvasData.nodes, ...newNodes],
+      },
+    });
+    showToast(`${newNodes.length} Kartu Sticky dikirim ke Kanvas Visual`);
+  };
+
+  // 8. Sticky Card -> Wiki Blocks
+  const handleSendStickyCardToBlocks = (card: StickyCard) => {
+    if (!activeNote) return;
+    const newBlocks: NoteBlock[] = [];
+    if (card.title.trim()) {
+      newBlocks.push({
+        id: `blk-${Date.now()}-h`,
+        type: 'h2',
+        content: card.title.trim(),
+      });
+    }
+    newBlocks.push({
+      id: `blk-${Date.now()}-p`,
+      type: 'paragraph',
+      content: card.body,
+    });
+    const cleanExisting =
+      activeNote.blocks.length === 1 && !activeNote.blocks[0].content.trim()
+        ? []
+        : activeNote.blocks;
+    updateActiveNote({ blocks: [...cleanExisting, ...newBlocks] });
+    showToast(`Kartu "${card.title || 'Sticky'}" ditambahkan ke Blok Wiki`);
+  };
+
+  // 9. Sticky Card -> Markdown
+  const handleSendStickyCardToMarkdown = (card: StickyCard) => {
+    if (!activeNote) return;
+    const section = [
+      card.title.trim() ? `## ${card.title.trim()}` : '',
+      card.body.trim(),
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+    const nextMd = activeNote.markdownContent.trim()
+      ? `${activeNote.markdownContent.trim()}\n\n${section}`
+      : section;
+    updateActiveNote({ markdownContent: nextMd });
+    showToast(`Kartu "${card.title || 'Sticky'}" ditambahkan ke Markdown`);
+  };
+
+  // 10. Canvas Node -> Sticky Card
+  const handleSendCanvasNodeToSticky = (node: CanvasNode) => {
+    if (!activeNote) return;
+    const newCard = canvasNodeToStickyCard(node);
+    updateActiveNote({ stickyCards: [newCard, ...activeNote.stickyCards] });
+    showToast(`Node "${node.title || 'Kanvas'}" dikirim ke Papan Sticky`);
+  };
+
+  // 11. Canvas Node -> Wiki Block
+  const handleSendCanvasNodeToBlocks = (node: CanvasNode) => {
+    if (!activeNote) return;
+    const added: NoteBlock[] = [
+      {
+        id: `blk-${Date.now()}-nh`,
+        type: 'h2',
+        content: node.title || 'Node Kanvas',
+      },
+      {
+        id: `blk-${Date.now()}-np`,
+        type: 'paragraph',
+        content: node.content || '',
+      },
+    ];
+    const cleanExisting =
+      activeNote.blocks.length === 1 && !activeNote.blocks[0].content.trim()
+        ? []
+        : activeNote.blocks;
+    updateActiveNote({ blocks: [...cleanExisting, ...added] });
+    showToast(`Node "${node.title || 'Kanvas'}" dikirim ke Blok Wiki`);
+  };
+
+  // 12. Full Canvas Flow -> Wiki Blocks & Markdown
+  const handleSyncCanvasToDoc = () => {
+    if (!activeNote || activeNote.canvasData.nodes.length === 0) return;
+    const generatedBlocks = canvasToWikiBlocks(activeNote.canvasData);
+    const cleanExisting =
+      activeNote.blocks.length === 1 && !activeNote.blocks[0].content.trim()
+        ? []
+        : activeNote.blocks;
+    const combinedBlocks = [...cleanExisting, ...generatedBlocks];
+    const nextMd = blocksToMarkdown(combinedBlocks);
+    updateActiveNote({
+      blocks: combinedBlocks,
+      markdownContent: nextMd,
+    });
+    showToast('Alur Kanvas Visual berhasil disusun ke Blok Wiki & Markdown');
   };
 
   // Folder & Tag Management
@@ -509,7 +692,9 @@ export default function App() {
 
   const handleDownloadActiveMarkdown = () => {
     if (!activeNote) return;
-    const blob = new Blob([activeNote.markdownContent], {
+    const contentToDownload =
+      activeNote.markdownContent.trim() || blocksToMarkdown(activeNote.blocks);
+    const blob = new Blob([contentToDownload], {
       type: 'text/markdown;charset=utf-8',
     });
     const url = URL.createObjectURL(blob);
@@ -522,7 +707,7 @@ export default function App() {
     a.download = `${safeName || 'catatan'}.md`;
     a.click();
     URL.revokeObjectURL(url);
-    showToast(`Dokumen "${activeNote.title}.md" diunduh`);
+    showToast(`Dokumen "${activeNote.title || 'catatan'}.md" diunduh`);
   };
 
   const handleImportWorkspaceJson = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -532,9 +717,9 @@ export default function App() {
     reader.onload = (event) => {
       try {
         const parsed = JSON.parse(String(event.target?.result || '{}'));
-        if (Array.isArray(parsed.notes) && parsed.notes.length > 0) {
+        if (Array.isArray(parsed.notes)) {
           setNotes(parsed.notes);
-          setActiveNoteId(parsed.notes[0].id);
+          setActiveNoteId(parsed.notes[0]?.id || '');
         }
         if (Array.isArray(parsed.folders)) setFolders(parsed.folders);
         if (Array.isArray(parsed.tags)) setTags(parsed.tags);
@@ -631,40 +816,21 @@ export default function App() {
           Aksara Studio
         </a>
 
-        {/* Zone 2: 5 Concise Single-Line Text Navigation Links */}
+        {/* Zone 2: Concise Single-Line Text Navigation Links */}
         <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-stone-600 dark:text-slate-400">
           <button
             type="button"
-            onClick={() => setActiveView('notes')}
+            onClick={() => {
+              setActiveView('notes');
+              if (activeNote) updateActiveNote({ mode: 'unified' });
+            }}
             className={`hover:text-stone-900 dark:hover:text-white transition-colors whitespace-nowrap shrink-0 ${
               activeView === 'notes'
                 ? 'text-indigo-600 dark:text-indigo-400 underline underline-offset-8 decoration-2'
                 : ''
             }`}
           >
-            Ruang Catatan
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveView('sticky-board')}
-            className={`hover:text-stone-900 dark:hover:text-white transition-colors whitespace-nowrap shrink-0 ${
-              activeView === 'sticky-board'
-                ? 'text-indigo-600 dark:text-indigo-400 underline underline-offset-8 decoration-2'
-                : ''
-            }`}
-          >
-            Papan Sticky
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveView('canvas-studio')}
-            className={`hover:text-stone-900 dark:hover:text-white transition-colors whitespace-nowrap shrink-0 ${
-              activeView === 'canvas-studio'
-                ? 'text-indigo-600 dark:text-indigo-400 underline underline-offset-8 decoration-2'
-                : ''
-            }`}
-          >
-            Kanvas Visual
+            Ruang Catatan (4-in-1)
           </button>
           <button
             type="button"
@@ -694,7 +860,7 @@ export default function App() {
         <div className="flex items-center shrink-0">
           <button
             type="button"
-            onClick={() => createNewNote('markdown')}
+            onClick={() => createNewNote('unified')}
             className="px-4 py-2 text-xs font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors whitespace-nowrap shrink-0"
           >
             + Catatan Baru
@@ -729,32 +895,6 @@ export default function App() {
                 >
                   {darkMode ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
                 </button>
-              </div>
-
-              {/* Mobile View Switcher */}
-              <div className="grid grid-cols-2 gap-1 md:hidden">
-                {(
-                  [
-                    { id: 'notes', label: 'Catatan' },
-                    { id: 'sticky-board', label: 'Sticky' },
-                    { id: 'canvas-studio', label: 'Kanvas' },
-                    { id: 'tasks', label: 'Tugas' },
-                    { id: 'templates', label: 'Templat' },
-                  ] as { id: WorkspaceView; label: string }[]
-                ).map((v) => (
-                  <button
-                    key={v.id}
-                    type="button"
-                    onClick={() => setActiveView(v.id)}
-                    className={`px-2.5 py-1.5 rounded-md text-xs font-medium text-left ${
-                      activeView === v.id
-                        ? 'bg-indigo-600 text-white'
-                        : 'text-stone-700 dark:text-slate-300'
-                    }`}
-                  >
-                    {v.label}
-                  </button>
-                ))}
               </div>
 
               {/* Primary Library Views */}
@@ -1008,32 +1148,11 @@ export default function App() {
           />
         )}
 
-        {activeView === 'sticky-board' && activeNote && (
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <StickyNotesBoard
-              cards={activeNote.stickyCards}
-              onChange={(nextCards) => updateActiveNote({ stickyCards: nextCards })}
-              onPromoteToNote={promoteStickyToNote}
-              boardTitle={`Papan Sticky: ${activeNote.title}`}
-            />
-          </div>
-        )}
-
-        {activeView === 'canvas-studio' && activeNote && (
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <CanvasWhiteboard
-              data={activeNote.canvasData}
-              onChange={(nextCanvas) => updateActiveNote({ canvasData: nextCanvas })}
-            />
-          </div>
-        )}
-
         {activeView === 'notes' && (
           <div className="flex-1 flex overflow-hidden">
-            {/* Middle Column: Filterable Notes List */}
-            <div className="w-72 lg:w-80 shrink-0 border-r border-stone-200/80 dark:border-slate-800 bg-[#FAF9F5] dark:bg-slate-900/40 flex flex-col overflow-hidden">
-              {/* List Search & Mode Filter Header */}
-              <div className="p-3.5 border-b border-stone-200/80 dark:border-slate-800 space-y-2.5">
+            {/* Middle Column: Notes List showing connected 4-in-1 contents */}
+            <div className="w-64 lg:w-72 shrink-0 border-r border-stone-200/80 dark:border-slate-800 bg-[#FAF9F5] dark:bg-slate-900/40 flex flex-col overflow-hidden">
+              <div className="p-3 border-b border-stone-200/80 dark:border-slate-800 space-y-2">
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
@@ -1053,49 +1172,23 @@ export default function App() {
                       type="text"
                       value={listSearch}
                       onChange={(e) => setListSearch(e.target.value)}
-                      placeholder="Filter daftar catatan..."
+                      placeholder="Filter catatan..."
                       className="w-full pl-8 pr-2.5 py-1.5 text-xs rounded-lg border border-stone-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-stone-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                     />
                   </div>
                 </div>
-
-                {/* Mode Filter Tabs */}
-                <div className="flex items-center gap-1 overflow-x-auto pb-0.5">
-                  {(
-                    [
-                      { id: 'all', label: 'Semua' },
-                      { id: 'markdown', label: 'Markdown' },
-                      { id: 'blocks', label: 'Blok' },
-                      { id: 'sticky', label: 'Sticky' },
-                      { id: 'canvas', label: 'Kanvas' },
-                    ] as { id: NoteMode | 'all'; label: string }[]
-                  ).map((m) => (
-                    <button
-                      key={m.id}
-                      type="button"
-                      onClick={() => setSelectedModeFilter(m.id)}
-                      className={`px-2 py-1 rounded-md text-[11px] font-medium transition-colors whitespace-nowrap shrink-0 ${
-                        selectedModeFilter === m.id
-                          ? 'bg-stone-900 text-white dark:bg-white dark:text-slate-900'
-                          : 'text-stone-500 dark:text-slate-400 hover:text-stone-900 dark:hover:text-white'
-                      }`}
-                    >
-                      {m.label}
-                    </button>
-                  ))}
-                </div>
               </div>
 
-              {/* Notes Cards List (Zero-Pill Unboxed Metadata) */}
+              {/* Notes Cards List (Showing connected 4-layer counts) */}
               <div className="flex-1 overflow-y-auto divide-y divide-stone-200/70 dark:divide-slate-800/80">
                 {filteredNotes.length === 0 ? (
-                  <div className="p-8 text-center space-y-3">
+                  <div className="p-6 text-center space-y-3">
                     <p className="text-xs text-stone-500 dark:text-slate-400">
-                      Tidak ada catatan pada filter ini.
+                      Belum ada catatan. Setiap catatan baru otomatis memuat Markdown, Blok Wiki, Papan Sticky, dan Kanvas Visual yang saling terhubung.
                     </p>
                     <button
                       type="button"
-                      onClick={() => createNewNote('markdown')}
+                      onClick={() => createNewNote('unified')}
                       className="px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 text-white hover:bg-indigo-700"
                     >
                       + Buat Catatan Baru
@@ -1104,18 +1197,16 @@ export default function App() {
                 ) : (
                   filteredNotes.map((note) => {
                     const isActive = activeNote?.id === note.id;
-                    const snippet =
-                      note.markdownContent
-                        .replace(/[#>*`_-]/g, '')
-                        .trim()
-                        .slice(0, 90) || 'Dokumen catatan...';
+                    const mdWords = note.markdownContent.trim()
+                      ? note.markdownContent.trim().split(/\s+/).length
+                      : 0;
 
                     return (
                       <button
                         key={note.id}
                         type="button"
                         onClick={() => setActiveNoteId(note.id)}
-                        className={`w-full text-left p-4 transition-colors ${
+                        className={`w-full text-left p-3.5 transition-colors ${
                           isActive
                             ? 'bg-white dark:bg-slate-900'
                             : 'hover:bg-stone-100/70 dark:hover:bg-slate-900/40'
@@ -1136,24 +1227,25 @@ export default function App() {
                           )}
                         </div>
 
-                        <p className="text-xs text-stone-500 dark:text-slate-400 line-clamp-2 mb-2 leading-relaxed">
-                          {snippet}
-                        </p>
-
-                        {/* Clean Unboxed Metadata with Typographic Separators */}
-                        <div className="flex items-center flex-wrap gap-1.5 text-[11px] text-stone-400 dark:text-slate-500 font-mono-tabular">
-                          <span>{MODE_LABELS[note.mode]}</span>
+                        {/* Connected 4-Layer Summary Metadata (Zero-Pill Unboxed) */}
+                        <div className="flex items-center flex-wrap gap-1.5 text-[11px] text-stone-500 dark:text-slate-400 font-mono-tabular mt-1">
+                          <span>{mdWords} kata MD</span>
                           <span aria-hidden="true">·</span>
-                          <span className="truncate max-w-[110px]">
+                          <span>{note.blocks.length} blok</span>
+                          <span aria-hidden="true">·</span>
+                          <span>{note.stickyCards.length} sticky</span>
+                          <span aria-hidden="true">·</span>
+                          <span>{note.canvasData.nodes.length} kanvas</span>
+                        </div>
+
+                        <div className="flex items-center flex-wrap gap-1.5 text-[11px] text-stone-400 dark:text-slate-500 font-mono-tabular mt-1">
+                          <span className="truncate max-w-[120px]">
                             {getFolderName(note.folderId)}
                           </span>
                           {note.tags.length > 0 && (
                             <>
                               <span aria-hidden="true">·</span>
-                              <span className="text-stone-500 dark:text-slate-400">
-                                #{note.tags[0]}
-                                {note.tags.length > 1 ? ` +${note.tags.length - 1}` : ''}
-                              </span>
+                              <span>#{note.tags[0]}</span>
                             </>
                           )}
                         </div>
@@ -1164,12 +1256,12 @@ export default function App() {
               </div>
             </div>
 
-            {/* Right Column: Active Note Multi-Mode Workspace */}
+            {/* Right Column: Active Note Unified 4-in-1 Connected Workspace */}
             {activeNote ? (
               <div className="flex-1 flex flex-col overflow-hidden bg-white dark:bg-slate-950">
-                {/* Note Metadata & Mode Switcher Header */}
-                <div className="px-6 py-4 border-b border-stone-200/80 dark:border-slate-800 space-y-3">
-                  {/* Top Row: Folder Select, Unboxed Timestamp, Actions */}
+                {/* Note Metadata & Connected 4-in-1 View Switcher Header */}
+                <div className="px-6 py-3.5 border-b border-stone-200/80 dark:border-slate-800 space-y-2.5">
+                  {/* Top Row: Folder Select, Unboxed Timestamp, Global Sync & Actions */}
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-2 text-xs text-stone-500 dark:text-slate-400 font-mono-tabular">
                       <FolderIcon className="w-3.5 h-3.5 text-stone-400" />
@@ -1190,16 +1282,14 @@ export default function App() {
                       <span aria-hidden="true">·</span>
                       <span>
                         Diperbarui{' '}
-                        {new Date(activeNote.updatedAt).toLocaleDateString('id-ID', {
-                          day: 'numeric',
-                          month: 'short',
+                        {new Date(activeNote.updatedAt).toLocaleTimeString('id-ID', {
                           hour: '2-digit',
                           minute: '2-digit',
                         })}
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <button
                         type="button"
                         onClick={() =>
@@ -1252,104 +1342,283 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Note Title Input + 4-Mode Switcher */}
+                  {/* Note Title Input + Connected 4-in-1 Switcher */}
                   <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3">
                     <input
                       type="text"
                       value={activeNote.title}
                       onChange={(e) => updateActiveNote({ title: e.target.value })}
-                      placeholder="Judul catatan..."
+                      placeholder="Ketik judul catatan..."
                       className="w-full font-display text-xl lg:text-2xl font-bold tracking-tight bg-transparent text-stone-900 dark:text-white focus:outline-none"
                     />
 
-                    {/* 4-Mode Interactive Segmented Control */}
-                    <div className="flex items-center gap-1 p-1 rounded-xl bg-stone-100 dark:bg-slate-900 border border-stone-200/80 dark:border-slate-800 shrink-0 self-start xl:self-auto">
+                    {/* Connected 4-in-1 Layout Switcher */}
+                    <div className="flex items-center gap-1 p-1 rounded-xl bg-stone-100 dark:bg-slate-900 border border-stone-200/80 dark:border-slate-800 shrink-0 self-start xl:self-auto overflow-x-auto">
+                      <button
+                        type="button"
+                        onClick={() => updateActiveNote({ mode: 'unified' })}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
+                          activeNote.mode === 'unified'
+                            ? 'bg-indigo-600 text-white shadow-xs'
+                            : 'text-stone-700 dark:text-slate-300 hover:text-stone-900'
+                        }`}
+                      >
+                        <Columns className="w-3.5 h-3.5" />
+                        <span>Semua 4 Ruang (Terpadu)</span>
+                      </button>
                       <button
                         type="button"
                         onClick={() => updateActiveNote({ mode: 'markdown' })}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
+                        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
                           activeNote.mode === 'markdown'
                             ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs'
                             : 'text-stone-600 dark:text-slate-400 hover:text-stone-900'
                         }`}
                       >
                         <FileText className="w-3.5 h-3.5" />
-                        <span>1. Markdown</span>
+                        <span>Markdown</span>
                       </button>
                       <button
                         type="button"
                         onClick={() => updateActiveNote({ mode: 'blocks' })}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
+                        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
                           activeNote.mode === 'blocks'
                             ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs'
                             : 'text-stone-600 dark:text-slate-400 hover:text-stone-900'
                         }`}
                       >
                         <Layers className="w-3.5 h-3.5" />
-                        <span>2. Blok Wiki</span>
+                        <span>Blok Wiki ({activeNote.blocks.length})</span>
                       </button>
                       <button
                         type="button"
                         onClick={() => updateActiveNote({ mode: 'sticky' })}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
+                        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
                           activeNote.mode === 'sticky'
                             ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs'
                             : 'text-stone-600 dark:text-slate-400 hover:text-stone-900'
                         }`}
                       >
                         <LayoutGrid className="w-3.5 h-3.5" />
-                        <span>3. Sticky Notes</span>
+                        <span>Sticky ({activeNote.stickyCards.length})</span>
                       </button>
                       <button
                         type="button"
                         onClick={() => updateActiveNote({ mode: 'canvas' })}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
+                        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
                           activeNote.mode === 'canvas'
                             ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs'
                             : 'text-stone-600 dark:text-slate-400 hover:text-stone-900'
                         }`}
                       >
                         <Network className="w-3.5 h-3.5" />
-                        <span>4. Kanvas Visual</span>
+                        <span>Kanvas ({activeNote.canvasData.nodes.length})</span>
                       </button>
                     </div>
                   </div>
 
-                  {/* Interactive Tag Assignment Bar */}
-                  <div className="flex items-center flex-wrap gap-1.5 pt-1">
-                    <span className="inline-flex items-center gap-1 text-xs text-stone-400 dark:text-slate-500 mr-1">
-                      <Tag className="w-3 h-3" />
-                      <span>Label:</span>
-                    </span>
-                    {tags.map((t) => {
-                      const active = activeNote.tags.includes(t.name);
-                      return (
-                        <button
-                          key={t.id}
-                          type="button"
-                          onClick={() => toggleNoteTag(t.name)}
-                          className={`px-2 py-0.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
-                            active
-                              ? 'bg-stone-900 text-white dark:bg-slate-100 dark:text-slate-900'
-                              : 'text-stone-500 dark:text-slate-400 hover:text-stone-900 dark:hover:text-white'
-                          }`}
-                        >
-                          #{t.name}
-                        </button>
-                      );
-                    })}
-                  </div>
+                  {/* Interactive Tag Bar */}
+                  {tags.length > 0 && (
+                    <div className="flex items-center flex-wrap gap-1.5 pt-0.5">
+                      <span className="inline-flex items-center gap-1 text-xs text-stone-400 dark:text-slate-500 mr-1">
+                        <Tag className="w-3 h-3" />
+                        <span>Label:</span>
+                      </span>
+                      {tags.map((t) => {
+                        const active = activeNote.tags.includes(t.name);
+                        return (
+                          <button
+                            key={t.id}
+                            type="button"
+                            onClick={() => toggleNoteTag(t.name)}
+                            className={`px-2 py-0.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
+                              active
+                                ? 'bg-stone-900 text-white dark:bg-slate-100 dark:text-slate-900'
+                                : 'text-stone-500 dark:text-slate-400 hover:text-stone-900 dark:hover:text-white'
+                            }`}
+                          >
+                            #{t.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
-                {/* Active Editor Body + Optional Checklist Side Drawer */}
+                {/* Active Editor Body: Either 4-in-1 Unified Grid OR Focused Single Pane */}
                 <div className="flex-1 flex overflow-hidden">
                   <div className="flex-1 overflow-hidden">
+                    {activeNote.mode === 'unified' && (
+                      <div className="h-full overflow-y-auto p-4 lg:p-5 bg-[#FAF9F5]/60 dark:bg-slate-950 space-y-4">
+                        {/* Connected Flow Banner */}
+                        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 rounded-xl border border-stone-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs">
+                          <div className="flex items-center gap-2 text-stone-600 dark:text-slate-300">
+                            <span className="font-semibold text-stone-900 dark:text-white">
+                              4 Ruang Catatan Terhubung:
+                            </span>
+                            <span>
+                              Ide di <strong>Papan Sticky</strong> & <strong>Kanvas Visual</strong> dapat langsung dikirim ke <strong>Blok Wiki</strong> & <strong>Markdown</strong>.
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={handleSyncMarkdownToBlocks}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md font-medium bg-stone-100 dark:bg-slate-800 text-stone-700 dark:text-slate-200 hover:bg-indigo-600 hover:text-white transition-colors whitespace-nowrap"
+                            >
+                              <RefreshCw className="w-3 h-3" />
+                              <span>Markdown → Blok Wiki</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleSyncBlocksToMarkdown}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md font-medium bg-stone-100 dark:bg-slate-800 text-stone-700 dark:text-slate-200 hover:bg-indigo-600 hover:text-white transition-colors whitespace-nowrap"
+                            >
+                              <RefreshCw className="w-3 h-3" />
+                              <span>Blok Wiki → Markdown</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* 2x2 Connected Workspace Grid */}
+                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                          {/* Panel 1: Markdown */}
+                          <section className="flex flex-col h-[480px] rounded-xl border border-stone-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden">
+                            <div className="flex items-center justify-between px-4 py-2.5 border-b border-stone-200 dark:border-slate-800 bg-stone-100/70 dark:bg-slate-900">
+                              <div className="flex items-center gap-2">
+                                <FileText className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                                <h3 className="text-xs font-bold text-stone-900 dark:text-white">
+                                  01. Editor Teks & Markdown
+                                </h3>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => updateActiveNote({ mode: 'markdown' })}
+                                className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium text-stone-600 dark:text-slate-300 hover:bg-stone-200/70 dark:hover:bg-slate-800"
+                              >
+                                <Maximize2 className="w-3 h-3" />
+                                <span>Fokus Layar Penuh</span>
+                              </button>
+                            </div>
+                            <div className="flex-1 overflow-hidden">
+                              <MarkdownEditor
+                                content={activeNote.markdownContent}
+                                onChange={(nextMd) =>
+                                  updateActiveNote({ markdownContent: nextMd })
+                                }
+                                onSyncToBlocks={handleSyncMarkdownToBlocks}
+                                onPullFromBlocks={handleSyncBlocksToMarkdown}
+                                onSendToSticky={handleSendMarkdownToSticky}
+                              />
+                            </div>
+                          </section>
+
+                          {/* Panel 2: Blok Wiki */}
+                          <section className="flex flex-col h-[480px] rounded-xl border border-stone-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden">
+                            <div className="flex items-center justify-between px-4 py-2.5 border-b border-stone-200 dark:border-slate-800 bg-stone-100/70 dark:bg-slate-900">
+                              <div className="flex items-center gap-2">
+                                <Layers className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                                <h3 className="text-xs font-bold text-stone-900 dark:text-white">
+                                  02. Sistem Blok Wiki ({activeNote.blocks.length} blok)
+                                </h3>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => updateActiveNote({ mode: 'blocks' })}
+                                className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium text-stone-600 dark:text-slate-300 hover:bg-stone-200/70 dark:hover:bg-slate-800"
+                              >
+                                <Maximize2 className="w-3 h-3" />
+                                <span>Fokus Layar Penuh</span>
+                              </button>
+                            </div>
+                            <div className="flex-1 overflow-hidden">
+                              <BlockWikiEditor
+                                blocks={activeNote.blocks}
+                                onChange={(nextBlocks) =>
+                                  updateActiveNote({ blocks: nextBlocks })
+                                }
+                                onSyncToMarkdown={handleSyncBlocksToMarkdown}
+                                onSendBlockToSticky={handleSendBlockToSticky}
+                                onSendBlockToCanvas={handleSendBlockToCanvas}
+                              />
+                            </div>
+                          </section>
+
+                          {/* Panel 3: Papan Sticky */}
+                          <section className="flex flex-col h-[480px] rounded-xl border border-stone-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden">
+                            <div className="flex items-center justify-between px-4 py-2.5 border-b border-stone-200 dark:border-slate-800 bg-stone-100/70 dark:bg-slate-900">
+                              <div className="flex items-center gap-2">
+                                <LayoutGrid className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                                <h3 className="text-xs font-bold text-stone-900 dark:text-white">
+                                  03. Papan Kartu Sticky ({activeNote.stickyCards.length} kartu)
+                                </h3>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => updateActiveNote({ mode: 'sticky' })}
+                                className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium text-stone-600 dark:text-slate-300 hover:bg-stone-200/70 dark:hover:bg-slate-800"
+                              >
+                                <Maximize2 className="w-3 h-3" />
+                                <span>Fokus Layar Penuh</span>
+                              </button>
+                            </div>
+                            <div className="flex-1 overflow-hidden">
+                              <StickyNotesBoard
+                                cards={activeNote.stickyCards}
+                                onChange={(nextCards) =>
+                                  updateActiveNote({ stickyCards: nextCards })
+                                }
+                                onSendCardToCanvas={handleSendStickyCardToCanvas}
+                                onSendCardToBlocks={handleSendStickyCardToBlocks}
+                                onSendCardToMarkdown={handleSendStickyCardToMarkdown}
+                                onSendAllToCanvas={handleSendAllStickyToCanvas}
+                              />
+                            </div>
+                          </section>
+
+                          {/* Panel 4: Kanvas Visual */}
+                          <section className="flex flex-col h-[480px] rounded-xl border border-stone-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden">
+                            <div className="flex items-center justify-between px-4 py-2.5 border-b border-stone-200 dark:border-slate-800 bg-stone-100/70 dark:bg-slate-900">
+                              <div className="flex items-center gap-2">
+                                <Network className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                                <h3 className="text-xs font-bold text-stone-900 dark:text-white">
+                                  04. Kanvas Papan Tulis Visual ({activeNote.canvasData.nodes.length} node)
+                                </h3>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => updateActiveNote({ mode: 'canvas' })}
+                                className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium text-stone-600 dark:text-slate-300 hover:bg-stone-200/70 dark:hover:bg-slate-800"
+                              >
+                                <Maximize2 className="w-3 h-3" />
+                                <span>Fokus Layar Penuh</span>
+                              </button>
+                            </div>
+                            <div className="flex-1 overflow-hidden">
+                              <CanvasWhiteboard
+                                data={activeNote.canvasData}
+                                onChange={(nextCanvas) =>
+                                  updateActiveNote({ canvasData: nextCanvas })
+                                }
+                                onSendNodeToSticky={handleSendCanvasNodeToSticky}
+                                onSendNodeToBlocks={handleSendCanvasNodeToBlocks}
+                                onSyncCanvasToDoc={handleSyncCanvasToDoc}
+                              />
+                            </div>
+                          </section>
+                        </div>
+                      </div>
+                    )}
+
                     {activeNote.mode === 'markdown' && (
                       <MarkdownEditor
                         content={activeNote.markdownContent}
                         onChange={(nextMd) =>
                           updateActiveNote({ markdownContent: nextMd })
                         }
+                        onSyncToBlocks={handleSyncMarkdownToBlocks}
+                        onPullFromBlocks={handleSyncBlocksToMarkdown}
+                        onSendToSticky={handleSendMarkdownToSticky}
                       />
                     )}
 
@@ -1359,6 +1628,9 @@ export default function App() {
                         onChange={(nextBlocks) =>
                           updateActiveNote({ blocks: nextBlocks })
                         }
+                        onSyncToMarkdown={handleSyncBlocksToMarkdown}
+                        onSendBlockToSticky={handleSendBlockToSticky}
+                        onSendBlockToCanvas={handleSendBlockToCanvas}
                       />
                     )}
 
@@ -1368,7 +1640,10 @@ export default function App() {
                         onChange={(nextCards) =>
                           updateActiveNote({ stickyCards: nextCards })
                         }
-                        onPromoteToNote={promoteStickyToNote}
+                        onSendCardToCanvas={handleSendStickyCardToCanvas}
+                        onSendCardToBlocks={handleSendStickyCardToBlocks}
+                        onSendCardToMarkdown={handleSendStickyCardToMarkdown}
+                        onSendAllToCanvas={handleSendAllStickyToCanvas}
                       />
                     )}
 
@@ -1378,6 +1653,9 @@ export default function App() {
                         onChange={(nextCanvas) =>
                           updateActiveNote({ canvasData: nextCanvas })
                         }
+                        onSendNodeToSticky={handleSendCanvasNodeToSticky}
+                        onSendNodeToBlocks={handleSendCanvasNodeToBlocks}
+                        onSyncCanvasToDoc={handleSyncCanvasToDoc}
                       />
                     )}
                   </div>
@@ -1505,43 +1783,17 @@ export default function App() {
                       Ruang Kerja Masih Kosong
                     </h2>
                     <p className="text-xs text-stone-500 dark:text-slate-400 leading-relaxed">
-                      Pilih salah satu mode pencatatan di bawah ini untuk membuat catatan pertama Anda.
+                      Setiap catatan yang Anda buat otomatis menyatukan <strong>Markdown</strong>, <strong>Blok Wiki</strong>, <strong>Papan Sticky</strong>, dan <strong>Kanvas Visual</strong> yang saling terhubung dalam satu dokumen.
                     </p>
                   </div>
-                  <div className="grid grid-cols-2 gap-2.5">
-                    <button
-                      type="button"
-                      onClick={() => createNewNote('markdown')}
-                      className="flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-medium bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
-                    >
-                      <FileText className="w-3.5 h-3.5" />
-                      <span>+ Editor Markdown</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => createNewNote('blocks')}
-                      className="flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-medium bg-stone-100 dark:bg-slate-900 text-stone-800 dark:text-slate-200 border border-stone-200 dark:border-slate-800 hover:border-indigo-500 transition-colors"
-                    >
-                      <Layers className="w-3.5 h-3.5" />
-                      <span>+ Blok Wiki</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => createNewNote('sticky')}
-                      className="flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-medium bg-stone-100 dark:bg-slate-900 text-stone-800 dark:text-slate-200 border border-stone-200 dark:border-slate-800 hover:border-indigo-500 transition-colors"
-                    >
-                      <LayoutGrid className="w-3.5 h-3.5" />
-                      <span>+ Papan Sticky</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => createNewNote('canvas')}
-                      className="flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-medium bg-stone-100 dark:bg-slate-900 text-stone-800 dark:text-slate-200 border border-stone-200 dark:border-slate-800 hover:border-indigo-500 transition-colors"
-                    >
-                      <Network className="w-3.5 h-3.5" />
-                      <span>+ Kanvas Visual</span>
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => createNewNote('unified')}
+                    className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Buat Catatan Terpadu (4-in-1) Pertama</span>
+                  </button>
                 </div>
               </div>
             )}

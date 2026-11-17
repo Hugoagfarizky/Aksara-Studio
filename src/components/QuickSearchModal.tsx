@@ -12,6 +12,7 @@ interface QuickSearchModalProps {
 }
 
 const MODE_NAMES: Record<NoteMode, string> = {
+  unified: 'Terpadu 4-in-1',
   markdown: 'Markdown',
   blocks: 'Blok Wiki',
   sticky: 'Sticky Notes',

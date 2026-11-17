@@ -1,10 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Eraser,
+  Layers,
+  LayoutGrid,
   Link2,
   MousePointer,
   PenTool,
   Plus,
+  RefreshCw,
   RotateCcw,
   Trash2,
   ZoomIn,
@@ -21,6 +24,9 @@ import {
 interface CanvasWhiteboardProps {
   data: CanvasData;
   onChange: (nextData: CanvasData) => void;
+  onSendNodeToSticky?: (node: CanvasNode) => void;
+  onSendNodeToBlocks?: (node: CanvasNode) => void;
+  onSyncCanvasToDoc?: () => void;
 }
 
 type CanvasTool = 'select' | 'connect' | 'draw';
@@ -56,7 +62,13 @@ const NODE_TONE_CLASSES: Record<
   },
 };
 
-export const CanvasWhiteboard: React.FC<CanvasWhiteboardProps> = ({ data, onChange }) => {
+export const CanvasWhiteboard: React.FC<CanvasWhiteboardProps> = ({
+  data,
+  onChange,
+  onSendNodeToSticky,
+  onSendNodeToBlocks,
+  onSyncCanvasToDoc,
+}) => {
   const [activeTool, setActiveTool] = useState<CanvasTool>('select');
   const [zoom, setZoom] = useState<number>(1);
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
@@ -73,7 +85,6 @@ export const CanvasWhiteboard: React.FC<CanvasWhiteboardProps> = ({ data, onChan
   const connections = data?.connections || [];
   const strokes = data?.strokes || [];
 
-  // Render freehand strokes onto the HTML5 canvas layer
   useEffect(() => {
     const canvas = sketchCanvasRef.current;
     if (!canvas) return;
@@ -108,11 +119,11 @@ export const CanvasWhiteboard: React.FC<CanvasWhiteboardProps> = ({ data, onChan
     const offset = (nodes.length % 5) * 32;
     const newNode: CanvasNode = {
       id: `node-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
-      x: 100 + offset,
-      y: 90 + offset,
+      x: 80 + offset,
+      y: 70 + offset,
       width: 250,
-      title: `Node Konsep #${nodes.length + 1}`,
-      content: 'Ketik ide atau langkah alur kerja di sini. Tarik header untuk memindahkan posisi.',
+      title: '',
+      content: '',
       tone,
     };
     onChange({
@@ -144,10 +155,7 @@ export const CanvasWhiteboard: React.FC<CanvasWhiteboardProps> = ({ data, onChan
     });
   };
 
-  const handleNodeHeaderMouseDown = (
-    e: React.MouseEvent,
-    node: CanvasNode
-  ) => {
+  const handleNodeHeaderMouseDown = (e: React.MouseEvent, node: CanvasNode) => {
     e.stopPropagation();
     if (activeTool === 'connect') {
       if (!connectStartId) {
@@ -259,7 +267,7 @@ export const CanvasWhiteboard: React.FC<CanvasWhiteboardProps> = ({ data, onChan
               }`}
             >
               <MousePointer className="w-3.5 h-3.5" />
-              <span>Pilih & Geser</span>
+              <span>Geser</span>
             </button>
             <button
               type="button"
@@ -271,9 +279,7 @@ export const CanvasWhiteboard: React.FC<CanvasWhiteboardProps> = ({ data, onChan
               }`}
             >
               <Link2 className="w-3.5 h-3.5" />
-              <span>
-                {connectStartId ? 'Klik Node Tujuan...' : 'Hubungkan Node'}
-              </span>
+              <span>{connectStartId ? 'Klik Tujuan...' : 'Hubungkan'}</span>
             </button>
             <button
               type="button"
@@ -288,21 +294,33 @@ export const CanvasWhiteboard: React.FC<CanvasWhiteboardProps> = ({ data, onChan
               }`}
             >
               <PenTool className="w-3.5 h-3.5" />
-              <span>Coretan Pena</span>
+              <span>Coretan</span>
             </button>
           </div>
 
           <button
             type="button"
             onClick={() => addNode('indigo')}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 text-white hover:bg-indigo-700 transition-colors whitespace-nowrap shrink-0"
+            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 text-white hover:bg-indigo-700 transition-colors whitespace-nowrap shrink-0"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>Tambah Kartu Kanvas</span>
+            <span>+ Node Kanvas</span>
           </button>
 
+          {onSyncCanvasToDoc && nodes.length > 0 && (
+            <button
+              type="button"
+              onClick={onSyncCanvasToDoc}
+              title="Susun seluruh node & alur kanvas menjadi Blok Wiki dan naskah Markdown di catatan ini"
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800/70 hover:bg-emerald-100 transition-colors whitespace-nowrap shrink-0"
+            >
+              <RefreshCw className="w-3 h-3" />
+              <span>Susun Kanvas → Blok Wiki & Markdown</span>
+            </button>
+          )}
+
           {activeTool === 'draw' && (
-            <div className="flex items-center gap-1.5 ml-2">
+            <div className="flex items-center gap-1.5 ml-1">
               {['#4F46E5', '#D97706', '#16A34A', '#E11D48', '#334155'].map((c) => (
                 <button
                   key={c}
@@ -319,12 +337,12 @@ export const CanvasWhiteboard: React.FC<CanvasWhiteboardProps> = ({ data, onChan
         </div>
 
         {/* Zoom & Canvas Reset Controls */}
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1">
           {strokes.length > 0 && (
             <button
               type="button"
               onClick={clearStrokes}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs text-stone-600 dark:text-slate-300 hover:bg-stone-200/70 dark:hover:bg-slate-800 whitespace-nowrap shrink-0"
+              className="flex items-center gap-1 px-2 py-1 rounded-md text-xs text-stone-600 dark:text-slate-300 hover:bg-stone-200/70 dark:hover:bg-slate-800 whitespace-nowrap shrink-0"
             >
               <Eraser className="w-3.5 h-3.5" />
               <span>Hapus Coretan</span>
@@ -338,7 +356,7 @@ export const CanvasWhiteboard: React.FC<CanvasWhiteboardProps> = ({ data, onChan
           >
             <ZoomOut className="w-3.5 h-3.5" />
           </button>
-          <span className="font-mono-tabular text-xs text-stone-600 dark:text-slate-300 w-12 text-center">
+          <span className="font-mono-tabular text-xs text-stone-600 dark:text-slate-300 w-11 text-center">
             {Math.round(zoom * 100)}%
           </span>
           <button
@@ -481,6 +499,7 @@ export const CanvasWhiteboard: React.FC<CanvasWhiteboardProps> = ({ data, onChan
                   <input
                     type="text"
                     value={node.title}
+                    placeholder="Judul node..."
                     onMouseDown={(e) => e.stopPropagation()}
                     onChange={(e) => updateNode(node.id, { title: e.target.value })}
                     className="w-full text-xs font-bold bg-transparent focus:outline-none"
@@ -515,16 +534,41 @@ export const CanvasWhiteboard: React.FC<CanvasWhiteboardProps> = ({ data, onChan
                   </div>
                 </div>
 
-                {/* Node Content */}
-                <div className="p-3">
+                {/* Node Content + Cross-Mode Buttons */}
+                <div className="p-3 space-y-2">
                   <textarea
                     rows={3}
                     value={node.content}
                     onMouseDown={(e) => e.stopPropagation()}
                     onChange={(e) => updateNode(node.id, { content: e.target.value })}
-                    placeholder="Tulis detail konsep..."
+                    placeholder="Ketik detail konsep..."
                     className="w-full bg-transparent resize-y text-xs leading-relaxed text-stone-700 dark:text-slate-300 focus:outline-none"
                   />
+                  <div
+                    className="flex items-center gap-1 pt-1.5 border-t border-stone-100 dark:border-slate-800"
+                    onMouseDown={(e) => e.stopPropagation()}
+                  >
+                    {onSendNodeToSticky && (
+                      <button
+                        type="button"
+                        onClick={() => onSendNodeToSticky(node)}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 hover:bg-amber-100 transition-colors"
+                      >
+                        <LayoutGrid className="w-2.5 h-2.5" />
+                        <span>+ Sticky</span>
+                      </button>
+                    )}
+                    {onSendNodeToBlocks && (
+                      <button
+                        type="button"
+                        onClick={() => onSendNodeToBlocks(node)}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 transition-colors"
+                      >
+                        <Layers className="w-2.5 h-2.5" />
+                        <span>+ Blok Wiki</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             );
@@ -541,9 +585,7 @@ export const CanvasWhiteboard: React.FC<CanvasWhiteboardProps> = ({ data, onChan
           <span aria-hidden="true">·</span>
           <span>{strokes.length} coretan gambar</span>
         </div>
-        <div>
-          Tip: Pilih &quot;Hubungkan Node&quot; lalu klik header 2 kartu untuk membuat garis alur
-        </div>
+        <div>Terhubung dengan Papan Sticky, Blok Wiki & Markdown</div>
       </div>
     </div>
   );

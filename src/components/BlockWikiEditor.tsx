@@ -9,9 +9,12 @@ import {
   Heading1,
   Heading2,
   Info,
+  LayoutGrid,
   Minus,
+  Network,
   Plus,
   Quote,
+  RefreshCw,
   Table,
   Trash2,
 } from 'lucide-react';
@@ -20,6 +23,9 @@ import { BlockType, NoteBlock } from '../types/note';
 interface BlockWikiEditorProps {
   blocks: NoteBlock[];
   onChange: (nextBlocks: NoteBlock[]) => void;
+  onSyncToMarkdown?: () => void;
+  onSendBlockToSticky?: (block: NoteBlock) => void;
+  onSendBlockToCanvas?: (block: NoteBlock) => void;
 }
 
 const BLOCK_TYPE_OPTIONS: { type: BlockType; label: string; icon: React.ReactNode }[] = [
@@ -34,7 +40,13 @@ const BLOCK_TYPE_OPTIONS: { type: BlockType; label: string; icon: React.ReactNod
   { type: 'divider', label: 'Garis Pemisah', icon: <Minus className="w-3.5 h-3.5" /> },
 ];
 
-export const BlockWikiEditor: React.FC<BlockWikiEditorProps> = ({ blocks, onChange }) => {
+export const BlockWikiEditor: React.FC<BlockWikiEditorProps> = ({
+  blocks,
+  onChange,
+  onSyncToMarkdown,
+  onSendBlockToSticky,
+  onSendBlockToCanvas,
+}) => {
   const updateBlock = (id: string, patch: Partial<NoteBlock>) => {
     onChange(blocks.map((b) => (b.id === id ? { ...b, ...patch } : b)));
   };
@@ -43,25 +55,15 @@ export const BlockWikiEditor: React.FC<BlockWikiEditorProps> = ({ blocks, onChan
     const newBlock: NoteBlock = {
       id: `blk-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       type,
-      content:
-        type === 'h1'
-          ? 'Judul Bagian Baru'
-          : type === 'h2'
-          ? 'Subjudul Baru'
-          : type === 'callout'
-          ? 'Tuliskan informasi penting atau catatan panduan di sini.'
-          : type === 'code'
-          ? '// Tulis cuplikan kode atau konfigurasi'
-          : '',
+      content: '',
       calloutTitle: type === 'callout' ? 'Catatan Penting' : undefined,
       checked: type === 'todo' ? false : undefined,
       language: type === 'code' ? 'typescript' : undefined,
       tableData:
         type === 'table'
           ? [
-              ['Komponen', 'Deskripsi', 'Status'],
-              ['Modul A', 'Spesifikasi awal', 'Aktif'],
-              ['Modul B', 'Integrasi data', 'Proses'],
+              ['Kolom 1', 'Kolom 2', 'Status'],
+              ['', '', ''],
             ]
           : undefined,
     };
@@ -112,45 +114,59 @@ export const BlockWikiEditor: React.FC<BlockWikiEditorProps> = ({ blocks, onChan
   const addTableRow = (block: NoteBlock) => {
     const current = block.tableData || [['Kolom 1', 'Kolom 2']];
     const cols = current[0]?.length || 2;
-    const nextTable = [...current, Array(cols).fill('Isi baru')];
+    const nextTable = [...current, Array(cols).fill('')];
     updateBlock(block.id, { tableData: nextTable });
   };
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Quick Insert Bar */}
-      <div className="flex items-center justify-between gap-3 px-6 py-2.5 border-b border-stone-200/80 dark:border-slate-800 bg-[#F3F1EC]/60 dark:bg-slate-900/60 overflow-x-auto">
+      {/* Quick Insert & Cross-Layer Sync Bar */}
+      <div className="flex items-center justify-between gap-3 px-5 py-2.5 border-b border-stone-200/80 dark:border-slate-800 bg-[#F3F1EC]/60 dark:bg-slate-900/60 overflow-x-auto">
         <div className="flex items-center gap-1.5">
           <span className="text-xs font-medium text-stone-500 dark:text-slate-400 mr-1 whitespace-nowrap shrink-0">
-            Sisipkan Blok:
+            + Blok:
           </span>
           {BLOCK_TYPE_OPTIONS.map((opt) => (
             <button
               key={opt.type}
               type="button"
               onClick={() => addBlockAt(blocks.length - 1, opt.type)}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium text-stone-700 dark:text-slate-300 bg-white dark:bg-slate-900 border border-stone-200/90 dark:border-slate-800 hover:border-indigo-500 dark:hover:border-indigo-500 transition-colors whitespace-nowrap shrink-0"
+              className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium text-stone-700 dark:text-slate-300 bg-white dark:bg-slate-900 border border-stone-200/90 dark:border-slate-800 hover:border-indigo-500 dark:hover:border-indigo-500 transition-colors whitespace-nowrap shrink-0"
             >
               {opt.icon}
               <span>{opt.label}</span>
             </button>
           ))}
         </div>
-        <span className="text-xs font-mono-tabular text-stone-500 dark:text-slate-400 whitespace-nowrap shrink-0">
-          {blocks.length} blok aktif
-        </span>
+
+        <div className="flex items-center gap-2 shrink-0">
+          {onSyncToMarkdown && (
+            <button
+              type="button"
+              onClick={onSyncToMarkdown}
+              title="Salin & sinkronkan seluruh Blok Wiki ini ke bagian Markdown catatan ini"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800/70 hover:bg-indigo-100 transition-colors whitespace-nowrap shrink-0"
+            >
+              <RefreshCw className="w-3 h-3" />
+              <span>Sinkron → Markdown</span>
+            </button>
+          )}
+          <span className="text-xs font-mono-tabular text-stone-500 dark:text-slate-400 whitespace-nowrap shrink-0">
+            {blocks.length} blok
+          </span>
+        </div>
       </div>
 
       {/* Blocks Canvas */}
-      <div className="flex-1 overflow-y-auto px-6 py-6">
+      <div className="flex-1 overflow-y-auto px-5 py-5">
         <div className="max-w-3xl mx-auto space-y-3">
           {blocks.map((block, index) => (
             <div
               key={block.id}
               className="group relative rounded-xl border border-stone-200/80 dark:border-slate-800/90 bg-white/80 dark:bg-slate-900/70 p-4 transition-colors hover:border-stone-300 dark:hover:border-slate-700"
             >
-              {/* Block Header Controls */}
-              <div className="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-stone-100 dark:border-slate-800/60">
+              {/* Block Header Controls + Cross-Mode Send Buttons */}
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-2 pb-2 border-b border-stone-100 dark:border-slate-800/60">
                 <div className="flex items-center gap-2">
                   <span className="font-mono-tabular text-[11px] text-stone-400 dark:text-slate-500">
                     #{index + 1}
@@ -171,6 +187,28 @@ export const BlockWikiEditor: React.FC<BlockWikiEditorProps> = ({ blocks, onChan
                 </div>
 
                 <div className="flex items-center gap-1">
+                  {onSendBlockToSticky && block.type !== 'divider' && (
+                    <button
+                      type="button"
+                      onClick={() => onSendBlockToSticky(block)}
+                      title="Kirim blok ini menjadi Kartu di Papan Sticky catatan ini"
+                      className="flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 transition-colors whitespace-nowrap"
+                    >
+                      <LayoutGrid className="w-3 h-3" />
+                      <span>+ Sticky</span>
+                    </button>
+                  )}
+                  {onSendBlockToCanvas && block.type !== 'divider' && (
+                    <button
+                      type="button"
+                      onClick={() => onSendBlockToCanvas(block)}
+                      title="Kirim blok ini menjadi Node di Kanvas Visual catatan ini"
+                      className="flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 transition-colors whitespace-nowrap"
+                    >
+                      <Network className="w-3 h-3" />
+                      <span>+ Kanvas</span>
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => moveBlock(index, -1)}
@@ -321,7 +359,7 @@ export const BlockWikiEditor: React.FC<BlockWikiEditorProps> = ({ blocks, onChan
                         {(
                           block.tableData || [
                             ['Kolom 1', 'Kolom 2'],
-                            ['Data A', 'Data B'],
+                            ['', ''],
                           ]
                         ).map((row, rIdx) => (
                           <tr
@@ -343,6 +381,7 @@ export const BlockWikiEditor: React.FC<BlockWikiEditorProps> = ({ blocks, onChan
                                   onChange={(e) =>
                                     updateTableCell(block, rIdx, cIdx, e.target.value)
                                   }
+                                  placeholder={rIdx === 0 ? 'Judul Kolom' : 'Isi sel...'}
                                   className="w-full bg-transparent text-xs font-mono-tabular text-stone-800 dark:text-slate-200 focus:outline-none"
                                 />
                               </td>
