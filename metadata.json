@@ -1,0 +1,6 @@
+{
+  "name": "Aksara Studio",
+  "description": "Platform ruang kerja catatan digital multi-mode dengan editor Markdown, sistem blok wiki, papan sticky notes, dan kanvas visual bebas.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
