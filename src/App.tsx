@@ -50,9 +50,9 @@ import {
 } from './types/note';
 
 const STORAGE_KEYS = {
-  NOTES: 'aksara_studio_notes_v1',
-  FOLDERS: 'aksara_studio_folders_v1',
-  TAGS: 'aksara_studio_tags_v1',
+  NOTES: 'aksara_studio_notes_v2',
+  FOLDERS: 'aksara_studio_folders_v2',
+  TAGS: 'aksara_studio_tags_v2',
   THEME: 'aksara_studio_theme_v1',
 };
 
@@ -79,10 +79,10 @@ export default function App() {
       const saved = localStorage.getItem(STORAGE_KEYS.NOTES);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch {
-      // Fallback to initial seed notes
+      // Fallback to empty initial notes
     }
     return INITIAL_NOTES;
   });
@@ -92,7 +92,7 @@ export default function App() {
       const saved = localStorage.getItem(STORAGE_KEYS.FOLDERS);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch {
       // Fallback
@@ -105,7 +105,7 @@ export default function App() {
       const saved = localStorage.getItem(STORAGE_KEYS.TAGS);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch {
       // Fallback
@@ -138,10 +138,7 @@ export default function App() {
   const [isAddingFolder, setIsAddingFolder] = useState<boolean>(false);
   const [newFolderName, setNewFolderName] = useState<string>('');
   const [newFolderParentId, setNewFolderParentId] = useState<string>('');
-  const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({
-    'fld-work': true,
-    'fld-personal': true,
-  });
+  const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
 
   const [isAddingTag, setIsAddingTag] = useState<boolean>(false);
   const [newTagName, setNewTagName] = useState<string>('');
@@ -161,6 +158,17 @@ export default function App() {
       setToastMessage((prev) => (prev === msg ? null : prev));
     }, 3200);
   };
+
+  // Clear legacy v1 sample keys on mount so workspace is completely clean
+  useEffect(() => {
+    try {
+      localStorage.removeItem('aksara_studio_notes_v1');
+      localStorage.removeItem('aksara_studio_folders_v1');
+      localStorage.removeItem('aksara_studio_tags_v1');
+    } catch {
+      // Ignore
+    }
+  }, []);
 
   // Sync Dark Mode with <html class="dark">
   useEffect(() => {
@@ -280,48 +288,22 @@ export default function App() {
     const targetFolder =
       selectedFolderId !== 'all' && selectedFolderId !== 'pinned'
         ? selectedFolderId
-        : folders[0]?.id || null;
+        : null;
 
     const newNote: Note = {
       id: `note-${Date.now()}`,
-      title: `Catatan ${MODE_LABELS[mode]} Baru`,
+      title: '',
       folderId: targetFolder,
       tags: selectedTag ? [selectedTag] : [],
       isPinned: false,
       mode,
       createdAt: now,
       updatedAt: now,
-      markdownContent: `# Catatan Baru\n\nMulai tuliskan pemikiran, rencana, atau dokumentasi Anda di sini.`,
-      blocks: [
-        { id: `blk-${Date.now()}-1`, type: 'h1', content: 'Judul Dokumen Baru' },
-        {
-          id: `blk-${Date.now()}-2`,
-          type: 'paragraph',
-          content: 'Ketik isi blok atau tambahkan blok baru menggunakan tombol di atas.',
-        },
-      ],
-      stickyCards: [
-        {
-          id: `stk-${Date.now()}`,
-          title: 'Ide Utama',
-          body: 'Tuliskan gagasan singkat pada kartu ini...',
-          tone: 'amber',
-          pinned: true,
-          updatedAt: now,
-        },
-      ],
+      markdownContent: '',
+      blocks: [{ id: `blk-${Date.now()}-1`, type: 'paragraph', content: '' }],
+      stickyCards: [],
       canvasData: {
-        nodes: [
-          {
-            id: `cn-${Date.now()}`,
-            x: 120,
-            y: 110,
-            width: 250,
-            title: 'Gagasan Inti',
-            content: 'Geser kartu ini atau hubungkan dengan node baru di kanvas.',
-            tone: 'indigo',
-          },
-        ],
+        nodes: [],
         connections: [],
         strokes: [],
       },
@@ -331,7 +313,7 @@ export default function App() {
     setNotes((prev) => [newNote, ...prev]);
     setActiveNoteId(newNote.id);
     setActiveView('notes');
-    showToast(`Catatan baru (${MODE_LABELS[mode]}) berhasil dibuat`);
+    showToast(`Catatan ${MODE_LABELS[mode]} baru dibuat`);
   };
 
   const applyTemplate = (template: NoteTemplate) => {
@@ -350,10 +332,6 @@ export default function App() {
   };
 
   const deleteNote = (noteId: string) => {
-    if (notes.length <= 1) {
-      showToast('Setidaknya satu catatan harus tetap tersimpan di ruang kerja');
-      return;
-    }
     const remaining = notes.filter((n) => n.id !== noteId);
     setNotes(remaining);
     if (activeNoteId === noteId) {
@@ -1519,7 +1497,54 @@ export default function App() {
                   )}
                 </div>
               </div>
-            ) : null}
+            ) : (
+              <div className="flex-1 flex items-center justify-center p-8 bg-white dark:bg-slate-950">
+                <div className="max-w-md text-center space-y-5">
+                  <div className="space-y-1.5">
+                    <h2 className="font-display text-xl font-bold text-stone-900 dark:text-white">
+                      Ruang Kerja Masih Kosong
+                    </h2>
+                    <p className="text-xs text-stone-500 dark:text-slate-400 leading-relaxed">
+                      Pilih salah satu mode pencatatan di bawah ini untuk membuat catatan pertama Anda.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => createNewNote('markdown')}
+                      className="flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-medium bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      <span>+ Editor Markdown</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => createNewNote('blocks')}
+                      className="flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-medium bg-stone-100 dark:bg-slate-900 text-stone-800 dark:text-slate-200 border border-stone-200 dark:border-slate-800 hover:border-indigo-500 transition-colors"
+                    >
+                      <Layers className="w-3.5 h-3.5" />
+                      <span>+ Blok Wiki</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => createNewNote('sticky')}
+                      className="flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-medium bg-stone-100 dark:bg-slate-900 text-stone-800 dark:text-slate-200 border border-stone-200 dark:border-slate-800 hover:border-indigo-500 transition-colors"
+                    >
+                      <LayoutGrid className="w-3.5 h-3.5" />
+                      <span>+ Papan Sticky</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => createNewNote('canvas')}
+                      className="flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-medium bg-stone-100 dark:bg-slate-900 text-stone-800 dark:text-slate-200 border border-stone-200 dark:border-slate-800 hover:border-indigo-500 transition-colors"
+                    >
+                      <Network className="w-3.5 h-3.5" />
+                      <span>+ Kanvas Visual</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
