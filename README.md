@@ -1,91 +1,91 @@
-# Aksara Studio — Platform Catatan Digital Multi-Mode
+# Aksara Studio — Multi-Mode Digital Note-Taking Platform
 
-**Aksara Studio** adalah ruang kerja catatan digital serbaguna yang menyatukan empat gaya pencatatan (**Editor Teks Kaya & Markdown**, **Dokumen Blok Terstruktur ala Wiki**, **Papan Kartu Sticky Notes**, dan **Kanvas Papan Tulis Visual 2D**) dalam satu antarmuka editorial yang tenang, cepat, dan tersimpan otomatis di perangkat lokal tanpa memerlukan login.
-
----
-
-## Fitur Utama
-
-### 1. Empat Mode Pencatatan Terpadu
-Setiap catatan di Aksara Studio dapat dibuka atau dialihkan kapan saja ke salah satu dari 4 mode kerja:
-- **Mode 1 — Editor Teks Kaya & Markdown**:
-  - Toolbar pemformatan lengkap (Heading, Bold, Italic, Kutipan, Daftar Butir, Checklist, Tabel, dan Blok Kode).
-  - Tiga mode tampilan: **Tulis**, **Berdampingan (Split View)**, dan **Pratinjau**.
-  - Kotak centang (*checkbox*) interaktif yang dapat langsung diklik dari panel Pratinjau.
-  - Pilihan peralihan tipografi antara **Sans Modern (`DM Sans`)** dan **Serif Editorial (`Source Serif 4`)** untuk kenyamanan membaca naskah panjang.
-  - Penghitung jumlah kata, karakter, dan estimasi waktu baca secara *real-time*.
-- **Mode 2 — Sistem Blok Terstruktur ala Wiki**:
-  - Penyusunan dokumen per blok independen: *Judul Besar (H1)*, *Subjudul (H2)*, *Paragraf*, *Item Tugas*, *Sorotan Info (Callout)*, *Kutipan*, *Blok Kode*, *Tabel Matriks Interaktif*, dan *Garis Pemisah*.
-  - Pengaturan urutan blok (geser ke atas/bawah), duplikasi blok, penyisipan blok di posisi mana pun, dan pengubahan tipe blok secara instan.
-- **Mode 3 — Papan Kartu Sticky Notes**:
-  - Grid kartu ide singkat dengan 6 pilihan warna kertas (*Kuning Amber*, *Hijau Sage*, *Biru Langit*, *Mawar Lembut*, *Ungu Lavender*, *Kertas Netral*).
-  - Penyematan kartu penting (*Pin*) di urutan teratas, pencarian isi kartu, dan filter berdasarkan warna.
-  - Tombol promosi satu klik untuk mengubah kartu *sticky note* menjadi dokumen catatan utuh.
-- **Mode 4 — Kanvas Bebas & Papan Tulis Visual**:
-  - Ruang kerja 2D interaktif untuk memetakan konsep dan alur sistem.
-  - Fitur *drag-and-drop* posisi node kartu, pembuatan garis panah penghubung antar-node, serta mode gambar tangan bebas (*freehand sketch*) menggunakan pena warna-warni.
-  - Kontrol perbesaran (*Zoom In / Zoom Out / Reset*).
-
-### 2. Organisasi & Produktivitas
-- **Folder & Sub-Folder Bertingkat**: Pengelompokan catatan dengan struktur pohon hierarki tanpa batas.
-- **Label Tag Berwarna**: Penandaan lintas folder dengan indikator warna semantik.
-- **Pencarian Cepat (`⌘K` / `Ctrl + K`)**: Palet pencarian instan yang memindai judul, isi Markdown, isi blok Wiki, kartu sticky, dan label tag.
-- **Pusat Tugas Terpadu**: Halaman khusus yang mengumpulkan seluruh daftar periksa (*checklist*) dan blok *To-Do* dari semua catatan lengkap dengan indikator prioritas, tenggat waktu, dan persentase progres penyelesaian.
-- **Galeri Templat Siap Pakai**: Buat catatan baru dalam satu klik dari templat *Notulen Rapat*, *Jurnal Refleksi Harian*, *Spesifikasi Produk (PRD)*, *Brainstorming Sticky*, atau *Peta Konsep Kanvas*.
-
-### 3. Privasi & Penyimpanan Lokal Mandiri
-- **Autosave Instan**: Seluruh perubahan disimpan otomatis di penyimpanan lokal peramban (`localStorage`).
-- **Ekspor & Impor JSON**: Unduh cadangan seluruh ruang kerja dalam format `.json` dan pulihkan kapan saja di perangkat lain.
-- **Unduh Markdown (`.md`)**: Ekspor dokumen aktif menjadi berkas Markdown standar.
-- **Mode Terang & Gelap**: Dukungan penuh tema *Warm Paper* (Terang) dan *Deep Carbon Slate* (Gelap).
+**Aksara Studio** is a versatile digital note-taking workspace that unifies four note-taking styles (**Rich Text & Markdown Editor**, **Structured Block Documents à la Wiki**, **Sticky Notes Board**, and **Freeform 2D Visual Canvas**) in a calm, fast editorial interface that autosaves to local storage with no login required.
 
 ---
 
-## Pintasan Papan Ketik (Keyboard Shortcuts)
+## Main features
 
-| Pintasan | Fungsi |
+### 1. Four unified note-taking modes
+Every note in Aksara Studio can be opened or switched at any time to one of 4 working modes:
+- **Mode 1 — Rich Text & Markdown Editor**:
+  - Full formatting toolbar (Heading, Bold, Italic, Quote, Bullet List, Checklist, Table, and Code Block).
+  - Three view modes: **Write**, **Side-by-side (Split View)**, and **Preview**.
+  - Interactive checkboxes that can be clicked directly from the Preview panel.
+  - Typography toggle between **Modern Sans (`DM Sans`)** and **Editorial Serif (`Source Serif 4`)** for comfortable long-form reading.
+  - Real-time word count, character count, and estimated reading time.
+- **Mode 2 — Structured Block Documents à la Wiki**:
+  - Compose documents from independent blocks: *Large Title (H1)*, *Subtitle (H2)*, *Paragraph*, *Task Item*, *Info Callout*, *Quote*, *Code Block*, *Interactive Matrix Table*, and *Divider*.
+  - Reorder blocks (move up/down), duplicate blocks, insert blocks at any position, and change block type instantly.
+- **Mode 3 — Sticky Notes Board**:
+  - Grid of short idea cards with 6 paper color choices (*Amber Yellow*, *Sage Green*, *Sky Blue*, *Soft Rose*, *Lavender Purple*, *Neutral Paper*).
+  - Pin important cards to the top, search card contents, and filter by color.
+  - One-click button to promote a sticky note card into a full note document.
+- **Mode 4 — Freeform Canvas & Visual Whiteboard**:
+  - Interactive 2D workspace for mapping concepts and system flows.
+  - *Drag-and-drop* card node positioning, drawing connecting arrows between nodes, and freehand sketching with colorful pens.
+  - Zoom controls (*Zoom In / Zoom Out / Reset*).
+
+### 2. Organization & productivity
+- **Nested Folders & Sub-Folders**: group notes with an unlimited hierarchical tree structure.
+- **Colored Label Tags**: cross-folder tagging with semantic color indicators.
+- **Quick Search (`⌘K` / `Ctrl + K`)**: instant search palette scanning titles, Markdown content, Wiki blocks, sticky cards, and label tags.
+- **Unified Task Center**: dedicated page collecting all checklists and To-Do blocks from every note, with priority indicators, due dates, and completion progress percentage.
+- **Ready-to-use Template Gallery**: create a new note in one click from *Meeting Minutes*, *Daily Reflection Journal*, *Product Specification (PRD)*, *Sticky Brainstorming*, or *Concept Map Canvas* templates.
+
+### 3. Privacy & independent local storage
+- **Instant Autosave**: all changes are saved automatically to the browser's local storage (`localStorage`).
+- **JSON Export & Import**: download a backup of the entire workspace as `.json` and restore it anytime on another device.
+- **Markdown Download (`.md`)**: export the active document to standard Markdown.
+- **Light & Dark Mode**: full support for *Warm Paper* (Light) and *Deep Carbon Slate* (Dark) themes.
+
+---
+
+## Keyboard shortcuts
+
+| Shortcut | Function |
 | :--- | :--- |
-| `Cmd + K` / `Ctrl + K` | Membuka atau menutup modal Pencarian Cepat lintas catatan |
+| `Cmd + K` / `Ctrl + K` | Open or close the cross-note Quick Search modal |
 
 ---
 
-## Teknologi yang Digunakan
+## Tech stack
 
 - **Frontend Framework**: React 19 + TypeScript
-- **Styling & Tema**: Tailwind CSS v4 (`@tailwindcss/vite`) dengan dukungan variabel tipografi editorial (`Plus Jakarta Sans`, `DM Sans`, `Source Serif 4`, dan `JetBrains Mono`)
-- **Ikonografi**: Lucide React
+- **Styling & Theme**: Tailwind CSS v4 (`@tailwindcss/vite`) with editorial typography variables (`Plus Jakarta Sans`, `DM Sans`, `Source Serif 4`, and `JetBrains Mono`)
+- **Iconography**: Lucide React
 - **Build Tool**: Vite
 
 ---
 
-## Cara Menjalankan di Lingkungan Lokal
+## Running locally
 
-1. **Instal dependensi**:
+1. **Install dependencies**:
    ```bash
    npm install
    ```
-2. **Jalankan server pengembangan**:
+2. **Run the development server**:
    ```bash
    npm run dev
    ```
-3. **Bangun untuk produksi**:
+3. **Build for production**:
    ```bash
    npm run build
    ```
 
 ---
 
-## Peta Jalan & Saran Pengembangan Lanjutan (Roadmap)
+## Roadmap & suggested future development
 
-1. **Tautan Dua Arah (*Bi-directional Wiki Links* `[[Judul Catatan]]`) & Peta Graf**:
-   - Memungkinkan pengguna mengetik `[[Nama Catatan]]` di dalam editor untuk menghubungkan dua dokumen secara langsung dan menampilkan visualisasi graf jaringan pengetahuan (*Knowledge Graph*).
-2. **Riwayat Versi (*Version History / Snapshots*)**:
-   - Menyimpan titik pemulihan berkala di `IndexedDB` sehingga pengguna dapat melihat perbandingan perubahan (*diff*) dan mengembalikan catatan ke versi sebelumnya.
-3. **Dukungan Lampiran Gambar & Rekaman Suara Lokal (`IndexedDB`)**:
-   - Beralih dari `localStorage` ke `IndexedDB` agar mampu menyimpan lampiran gambar beresolusi tinggi, sketsa kanvas sebagai PNG, serta memo suara singkat.
-4. **Sinkronisasi Cloud & Kolaborasi Waktu Nyata Opsional**:
-   - Menambahkan opsi sinkronisasi ke Firebase Firestore atau Google Drive sehingga pengguna tetap bisa bekerja luring (*offline-first*), namun data otomatis tersinkronisasi antar-perangkat saat daring.
-5. **Ekspor ke PDF & Gambar Kanvas (PNG/SVG)**:
-   - Menyediakan fitur cetak/ekspor dokumen dengan tata letak tipografi buku serta unduhan langsung diagram Kanvas Visual menjadi gambar PNG/SVG siap presentasi.
-6. **Pengingat & Tampilan Kalender Tugas**:
-   - Menambahkan tampilan kalender bulanan/mingguan di **Pusat Tugas** berdasarkan tanggal tenggat (*due date*) pada setiap item *checklist*.
+1. **Bi-directional Wiki Links `[[Note Title]]` & Knowledge Graph**:
+   - Let users type `[[Note Name]]` inside the editor to link two documents directly and display a knowledge graph network visualization.
+2. **Version History / Snapshots**:
+   - Store periodic recovery points in `IndexedDB` so users can view change diffs and restore notes to a previous version.
+3. **Local Image Attachments & Voice Memo Support (`IndexedDB`)**:
+   - Move from `localStorage` to `IndexedDB` to store high-resolution image attachments, canvas sketches as PNG, and short voice memos.
+4. **Optional Cloud Sync & Real-Time Collaboration**:
+   - Add optional sync to Firebase Firestore or Google Drive so users can still work offline (*offline-first*), with data auto-syncing across devices when online.
+5. **PDF & Canvas Image Export (PNG/SVG)**:
+   - Provide print/export of documents with book-style typography and direct download of Visual Canvas diagrams as presentation-ready PNG/SVG images.
+6. **Task Reminders & Calendar View**:
+   - Add monthly/weekly calendar views in the **Task Center** based on the due date of each checklist item.
