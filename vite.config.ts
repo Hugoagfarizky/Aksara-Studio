@@ -6,6 +6,8 @@ import {defineConfig} from 'vite';
 
 export default defineConfig(() => {
   return {
+    // GitHub Pages menyajikan project site di /Aksara-Studio/
+    base: '/Aksara-Studio/',
     plugins: [
       react(),
       tailwindcss(),
